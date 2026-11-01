@@ -1,6 +1,6 @@
 # Localization parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-23 · **Change:** minor (missing translations are listed by `cargo xtask i18n-report` and never fail a check) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-11-01 · **Last updated:** 2026-11-01 · **Change:** minor (RTL tabs, paragraph alignment, editors and Arabic fallback) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Per-language status against Excel, which ships its UI in dozens of languages (Windows language
 packs cover 100+), with localized function names, argument separators, number and date formats,
@@ -46,14 +46,20 @@ right-to-left sheets and full complex-script support. Part of
   `/run/host/fonts`, `/run/host/local-fonts` and `/run/host/user-fonts` layouts, so installed
   Noto CJK and WenQuanYi faces can render Chinese without a broad filesystem grant. This does
   not change the installed-font catalogue or add bundled fonts. Lao falls back to Lao Sangam MN / Lao MN (macOS),
-  Leelawadee UI / DokChampa (Windows) or Noto Sans Lao / Phetsarath OT (Linux). There is no complex-text shaping: Arabic and
-  Devanagari don't join or reorder, and there is no bidirectional layout. **Sheet Right-to-Left**
+  Leelawadee UI / DokChampa (Windows) or Noto Sans Lao / Phetsarath OT (Linux). The pinned egui fork
+  provides OpenType shaping and Unicode bidirectional layout. Native Arabic fallback probes
+  installed Tahoma/Arial/Segoe UI, Geeza Pro and Noto Arabic/DejaVu faces; no fonts are copied into
+  this repository. **Sheet Right-to-Left**
   (`view.rightToLeft`, Page Layout › Sheet Options, XLSX `rightToLeft`, `.xls` WINDOW2 fRightToLeft) mirrors the grid (#146):
   column A and the row headers on the right, the vertical scrollbar on the left; hit-testing,
-  arrow keys, editor, popups and floating objects follow; text stays left-to-right inside its box
-  (no bidi), and the sheet tabs, horizontal scrollbar and printing/PDF are not mirrored yet.
-  Text boxes and shapes keep their paragraphs' right-to-left direction (`a:pPr rtl`) through XLSX
-  save, though GridCraft still draws that text left to right. IME input goes
+  arrow keys, editor, popups and floating objects follow. Sheet tabs, navigation arrows, tab
+  reordering and the tab/scrollbar split handle follow the active sheet's direction too.
+  General-aligned Arabic/Hebrew text aligns right in either sheet direction; explicit Left/Right
+  remains physical, including wrapped text. Cell and formula-bar editors keep logical Unicode
+  text and bidi cursor handling; formulas use a left-to-right base direction. Text boxes and
+  shapes render their saved paragraph direction (`a:pPr rtl`), including in the text-box editor.
+  Printing/PDF sheet mirroring, non-Latin PDF fonts, a translated RTL application interface and
+  browser Arabic/Hebrew font coverage remain gaps. IME input goes
   through egui/winit and is unverified for Chinese, Japanese and Korean.
 - **Names in any script.** Defined names (Define Name, Create from Selection) are limited to
   255 characters, counted as characters rather than UTF-8 bytes, so a 255-letter Arabic name is
@@ -71,8 +77,8 @@ separators, number/date formats, machine translation with agent review, and scri
 | English | en | ~2,200 / ~2,200 (100%, source) | yes | Latin: yes | yes | full | — |
 | Simplified Chinese (Mandarin) | zh-Hans | 266 (~12%) | no | CJK system-font fallback (#38); IME unverified; PDF can't export | no | menus only | 8–13 h |
 | Spanish | es | 0 (0%) | no | Latin: yes | no | none | 6–10 h |
-| Hindi | hi | 0 (0%) | no | Devanagari: **no shaping** | no | none | 12–18 h |
-| Arabic | ar | 0 (0%) | no | **no shaping, no RTL UI**; Sheet Right-to-Left mirrors the grid (#146) | no | none | 25–35 h |
+| Hindi | hi | 0 (0%) | no | Shaping through pinned egui; Devanagari font coverage and IME unverified | no | none | 12–18 h |
+| Arabic | ar | 0 (0%) | no | Shaping/bidi through pinned egui; native Arabic fallback; mirrored grid and tabs; no translated RTL UI or non-Latin PDF | no | script support, no catalog | 25–35 h |
 | French | fr | 0 (0%) | no | Latin: yes | no | none | 6–10 h |
 | Portuguese | pt-BR | 943 (~43%) | dialogs and tooltips (dialogs take effect with #669) | Latin: yes | no | menus, File view, dialogs | 2–4 h |
 | Indonesian | id | 0 (0%) | no | Latin: yes | no | none | 5–8 h |
@@ -102,14 +108,15 @@ language (none so far) and of localized function names.
 2. Locale-aware formulas: localized function-name tables and separators at the formula-bar
    boundary only (files keep en-US invariant names), locale number and date formats, list
    separators in CSV.
-3. Text shaping and fallback: a shaping engine for grid, editor and PDF text (Arabic, Devanagari,
-   Thai), system font fallback for CJK, bidirectional runs, right-to-left sheet tabs and printing;
-   embedded subset fonts in PDF.
+3. Validate complex-script shaping and IME across platforms. Grid and editor bidi/shaping use the
+   pinned egui fork; RTL tabs and native Arabic fallback are connected. Remaining: browser
+   Arabic/Hebrew faces, right-to-left printing, and shaped text with embedded subset fonts in PDF.
 
 ## Revision history
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-01 | minor | RTL worksheet tabs, navigation, reorder and split handle; direction-aware General cell alignment and editors without reversing Unicode; explicit wrapped alignment; saved RTL shape paragraph direction used for painting/editing; native Arabic fallback. Printing/PDF and translated RTL chrome remain gaps |
 | 2026-10-23 | minor | Missing translations are reported, never a failure: `cargo xtask i18n-report` prints, per language, the strings other catalogs translate and it lacks (plus Spanish function help rows keyed by English the function catalog no longer has) and always passes; `cargo xtask ci` runs it first. Coverage and per-language parity tests and tests of one language's exact wording are gone; UI tests take the expected text from the catalog. Duplicate-key, placeholder, context-prefix and line-shape checks stay |
 | 2026-10-21 | minor | Romanian interface (`ro`, Română): 970 labels covering every key of the other catalogs (`crates/ui-egui/src/i18n/ro.rs`), `ro-*` system locales, the View-tab switcher and `app.language.set`; context keys show no prefix (File › Options test). English formulas and formats; AI-assisted draft pending native-speaker review |
 | 2026-10-20 | minor | Japanese: furigana (`rPh` phonetic runs and `<phoneticPr>` in `xl/sharedStrings.xml`) is no longer deleted by an open + save; it is kept on the workbook and written back (a `<phoneticPr>` without runs is kept too, while duplicate texts with different readings keep only the first, reported on open). Display of the readings is still missing (`crates/xlsx/src/tests/phonetic_tests.rs`) |

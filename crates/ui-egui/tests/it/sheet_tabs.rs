@@ -12,11 +12,17 @@ fn harness(width: f32, active: usize) -> Harness {
 
 /// Builds a tab strip with the caller's width, sheet count and active sheet, using pinned fonts and an explicit grid rect.
 fn harness_with(width: f32, sheets: usize, active: usize) -> Harness {
+    harness_direction(width, sheets, active, false)
+}
+
+fn harness_direction(width: f32, sheets: usize, active: usize, rtl: bool) -> Harness {
     let mut s = Session::new();
     s.new_workbook();
     s.execute("sheet.rename", json!({"sheet":0,"name":"Tab00"})).unwrap();
+    s.execute("view.rightToLeft", json!({"on":rtl})).unwrap();
     for i in 1..sheets {
         s.execute("home.insertSheet", json!({"name":format!("Tab{i:02}")})).unwrap();
+        s.execute("view.rightToLeft", json!({"on":rtl})).unwrap();
     }
     s.execute("sheet.activate", json!({"sheet":active})).unwrap();
     let mut fonts_ready = false;
@@ -34,6 +40,54 @@ fn harness_with(width: f32, sheets: usize, active: usize) -> Harness {
     );
     h.run_steps(20);
     h
+}
+
+#[test]
+fn rtl_tabs_start_on_the_right_and_scrollbar_is_to_their_left() {
+    let h = harness_direction(1000.0, 3, 0, true);
+    let (first, clip) = tab(&h, "Tab00").unwrap();
+    let (second, _) = tab(&h, "Tab01").unwrap();
+    let split = h.state().grid.tab_split.unwrap();
+    let track = h.state().grid.hscroll.unwrap();
+    assert!(first.center().x > second.center().x);
+    assert!(clip.right() > 880.0, "short RTL strips stay next to the navigation buttons: {clip:?}");
+    assert!(second.left() > split.right());
+    assert_eq!(track.right(), split.left());
+}
+
+#[test]
+fn rtl_navigation_and_overflow_reveal_the_active_tab() {
+    let mut h = harness_direction(700.0, 30, 29, true);
+    assert_visible(&h, "Tab29");
+    h.state_mut().run("sheet.activate", json!({"sheet":0})).unwrap();
+    h.run_steps(20);
+    assert_visible(&h, "Tab00");
+    let (_, clip) = tab(&h, "Tab00").unwrap();
+    let next = pos2(clip.right() + 44.0, clip.center().y);
+    for _ in 0..29 {
+        click(&mut h, next);
+    }
+    assert_eq!(h.state().session.doc().unwrap().wb.active_sheet(), 29);
+    assert_visible(&h, "Tab29");
+}
+
+#[test]
+fn rtl_dragging_a_tab_left_moves_it_to_a_later_sheet_index() {
+    let mut h = harness_direction(1000.0, 3, 0, true);
+    let (first, _) = tab(&h, "Tab00").unwrap();
+    let (second, _) = tab(&h, "Tab01").unwrap();
+    let from = first.center();
+    let to = second.center();
+    h.input_mut().events.extend([
+        Event::PointerMoved(from),
+        Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+    ]);
+    h.step();
+    h.input_mut().events.push(Event::PointerMoved(to));
+    h.step();
+    h.input_mut().events.push(Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    h.run_steps(20);
+    assert_eq!(h.state().session.doc().unwrap().wb.sheets[1].name, "Tab00");
 }
 
 fn tab(h: &Harness, name: &str) -> Option<(Rect, Rect)> {

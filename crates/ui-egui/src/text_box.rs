@@ -148,6 +148,23 @@ pub(crate) fn show(app: &mut SheetApp, ui: &mut egui::Ui, geo: &Geo, sh: &gridcr
     }
     let mut child = ui.new_child(egui::UiBuilder::new().id_salt(id).max_rect(rect));
     child.set_clip_rect(rect);
+    let align = match shape.format.align {
+        Some(gridcraft_engine::model::ShapeTextAlign::Center) => egui::Align::Center,
+        Some(gridcraft_engine::model::ShapeTextAlign::Right) => egui::Align::RIGHT,
+        Some(gridcraft_engine::model::ShapeTextAlign::Left) => egui::Align::LEFT,
+        None if shape.format.rtl => egui::Align::RIGHT,
+        None => egui::Align::LEFT,
+    };
+    let mut layouter = |ui: &egui::Ui, text: &dyn egui::TextBuffer, width: f32| {
+        let font = FontId::new(14.0 * geo.z, egui::FontFamily::Name(theme::CELL.into()));
+        let mut job = egui::text::LayoutJob::simple(text.as_str().to_string(), font, Color32::BLACK, width);
+        job.halign = align;
+        job.halign_min_is_start = false;
+        if shape.format.rtl {
+            job.direction = egui::epaint::text::TextDirection::RightToLeft;
+        }
+        ui.fonts_mut(|f| f.layout_job(job))
+    };
     egui::ScrollArea::vertical().id_salt(id).max_height(rect.height()).auto_shrink([false, false]).show(&mut child, |ui| {
         let response = ui
             .add(
@@ -159,6 +176,8 @@ pub(crate) fn show(app: &mut SheetApp, ui: &mut egui::Ui, geo: &Geo, sh: &gridcr
                     .margin(egui::Margin::ZERO)
                     .desired_width(rect.width())
                     .desired_rows(1)
+                    .align(egui::Align2([align, egui::Align::Min]))
+                    .layouter(&mut layouter)
                     // shape.setText's limit (a cell's).
                     .char_limit(32_767)
                     .min_size(rect.size())

@@ -82,6 +82,7 @@ mod popup_dismissal;
 mod protect_password;
 mod ribbon_layout;
 mod right_to_left;
+mod rtl_text;
 mod scroll_position;
 mod scrollbar_column_fill;
 mod selection;

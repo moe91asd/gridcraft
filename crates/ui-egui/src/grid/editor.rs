@@ -45,10 +45,24 @@ pub(super) fn in_cell_editor(app: &mut SheetApp, ui: &mut egui::Ui, geo: &Geo, s
         let text_w = ui.painter().layout_no_wrap(ed.text.clone(), font.clone(), Color32::BLACK).size().x;
         // Excel keeps the cell's height for one line and only grows for extra lines.
         let h = if lines > 1.0 { (size * 1.3 * lines + 4.0).max(rect.height()) } else { rect.height() };
-        (editor_width(text_w, rect.width(), size).min(geo.cells.right() - rect.left()), h)
+        (editor_width(text_w, rect.width(), size), h)
     };
-    // Grows to the left on a right-to-left sheet.
-    let erect = geo.mirror_rect(Rect::from_min_size(rect.min, vec2(w, h)));
+    // Grow towards the text's end, independently of the worksheet's column direction.
+    let screen = geo.mirror_rect(rect);
+    let cells = geo.mirror_rect(geo.cells);
+    let align = crate::text_direction::cell_alignment(st.align.h, &ed.text);
+    let (x, w) = match align {
+        egui::Align::Max => {
+            let w = w.min(screen.right() - cells.left());
+            (screen.right() - w, w)
+        }
+        egui::Align::Center => {
+            let w = w.min(2.0 * (screen.center().x - cells.left()).min(cells.right() - screen.center().x));
+            (screen.center().x - w / 2.0, w)
+        }
+        egui::Align::Min => (screen.left(), w.min(cells.right() - screen.left())),
+    };
+    let erect = Rect::from_min_size(pos2(x, screen.top()), vec2(w.max(0.0), h));
     let fill = match st.fill.pattern {
         PatternType::Solid => st.fill.fg.resolve(&wb.theme).map(theme::color32).unwrap_or(Color32::WHITE),
         _ => Color32::WHITE,

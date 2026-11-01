@@ -79,3 +79,17 @@ fn left_and_right_arrows_follow_the_screen() {
     h.run_steps(1);
     assert_eq!(h.state().session.active().unwrap().selection.active, CellRef::parse("A2").unwrap());
 }
+
+#[test]
+fn scrollbar_to_the_left_of_the_tabs_scrolls_towards_later_columns() {
+    let mut h = harness();
+    let track = h.state().grid.hscroll.unwrap();
+    let before = h.state().view().scroll.x;
+    // At column A, the RTL thumb starts on the right; click left of it to page left.
+    let at = egui::pos2(track.left() + 2.0, track.center().y);
+    frame(&mut h, Event::PointerMoved(at));
+    frame(&mut h, button(at, true));
+    frame(&mut h, button(at, false));
+    h.run_steps(3);
+    assert!(h.state().view().scroll.x > before);
+}

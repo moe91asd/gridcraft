@@ -57,6 +57,7 @@ pub(super) fn fallback_faces(han: HanOrder) -> Vec<(&'static str, Vec<(String, u
         ("sys-thai", thai()),
         ("sys-lao", lao()),
         ("sys-hebrew", hebrew()),
+        ("sys-arabic", arabic()),
         ("sys-symbols", symbols()),
         ("sys-symbols-2", symbols_more()),
     ]
@@ -241,6 +242,33 @@ pub(super) fn hebrew() -> Vec<(String, u32)> {
         &["NotoSansHebrew-Regular.ttf", "dejavu/DejaVuSans.ttf", "freefont/FreeSans.ttf"],
         "/usr/share/fonts/google-noto-vf/NotoSansHebrew[wght].ttf",
     )
+}
+
+/// Installed Arabic faces supply the joining glyphs used by epaint's OpenType shaper.
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) fn arabic() -> Vec<(String, u32)> {
+    let mut faces = script_fonts(
+        &["tahoma.ttf", "arial.ttf", "segoeui.ttf"],
+        &["/System/Library/Fonts/Supplemental/Geeza Pro.ttc", "/System/Library/Fonts/GeezaPro.ttc", "/System/Library/Fonts/Supplemental/Arial.ttf"],
+        &["NotoSansArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf", "dejavu/DejaVuSans.ttf"],
+        "/usr/share/fonts/google-noto-vf/NotoSansArabic[wght].ttf",
+    );
+    for directory in [
+        "/run/host/fonts/truetype/noto",
+        "/run/host/fonts/noto",
+        "/run/host/fonts/TTF",
+        "/run/host/fonts/truetype/dejavu",
+        "/run/host/local-fonts",
+        "/run/host/user-fonts",
+        "/usr/share/fonts/TTF",
+        "/usr/share/fonts/noto",
+        "/usr/share/fonts/google-noto-sans-arabic-fonts",
+    ] {
+        for name in ["NotoSansArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf", "DejaVuSans.ttf"] {
+            faces.push((format!("{directory}/{name}"), 0));
+        }
+    }
+    faces
 }
 
 /// Symbol faces behind the UI font. Interface fonts such as Noto Sans and Cantarell (and egui's

@@ -30,6 +30,21 @@ fn explicit_left_and_right_keep_their_side_on_a_right_to_left_sheet() {
 }
 
 #[test]
+fn general_text_alignment_follows_the_paragraph_in_either_sheet_direction() {
+    use super::cell_paint::value_halign;
+    use super::{HAlign, Value, painted_halign};
+    for rtl in [false, true] {
+        for text in ["مرحبا 123", "שלום (123)"] {
+            assert_eq!(painted_halign(value_halign(HAlign::General, &Value::text(text), false, text, rtl), rtl), HAlign::Right);
+        }
+        let text = "Latin عربي";
+        assert_eq!(painted_halign(value_halign(HAlign::General, &Value::text(text), false, text, rtl), rtl), HAlign::Left);
+        assert_eq!(value_halign(HAlign::General, &Value::Number(123.0), true, "123", rtl), HAlign::Right);
+        assert_eq!(value_halign(HAlign::General, &Value::Bool(true), false, "TRUE", rtl), HAlign::Center);
+    }
+}
+
+#[test]
 fn heading_labels_scale_with_the_zoom_without_a_cap() {
     use super::{DISPLAY_SCALE, heading_font_size};
     let at = |percent: f32| heading_font_size(percent / 100.0 * DISPLAY_SCALE);

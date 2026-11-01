@@ -1,6 +1,6 @@
 use super::cell_paint::{
     Look, MergedArea, cell_text_y, center_across_end, col32, display_text, look, merged_edges, paint_border, paint_cf_icon, painted_halign,
-    rotated_text_pos, shrink_font, wrapped_cell_text_y,
+    rotated_text_pos, shrink_font, value_halign, wrapped_cell_text_y,
 };
 use super::geo::Geo;
 use super::tables::{filter_button_rect, paint_filter_button};
@@ -368,15 +368,7 @@ fn paint_cell(q: &QuadrantPaint<'_>, painted: &(CellRef, Rect, Look, Option<CfLo
         return;
     }
     let color = ncolor.unwrap_or(lk.text_color);
-    let halign = match st.align.h {
-        HAlign::General => match v {
-            Value::Number(_) => HAlign::Right,
-            Value::Bool(_) | Value::Error(_) => HAlign::Center,
-            _ if numeric => HAlign::Right,
-            _ => HAlign::Left,
-        },
-        h => painted_halign(h, geo.rtl),
-    };
+    let halign = value_halign(st.align.h, &v, numeric, &text, geo.rtl);
     let indent = st.align.indent as f32 * 9.0 * z;
     let pad = 2.5 * z;
     let rotated = st.align.rotation != 0 && st.align.rotation != 255;
@@ -384,17 +376,22 @@ fn paint_cell(q: &QuadrantPaint<'_>, painted: &(CellRef, Rect, Look, Option<CfLo
     if !rotated && (st.align.wrap || st.align.h == HAlign::Justify) {
         let wrap_w = (rect.width() - 2.0 * pad - indent).max(4.0);
         let mut job = egui::text::LayoutJob::simple(text.clone(), font.clone(), color, wrap_w);
-        job.halign = match halign {
+        // The cell's explicit alignment is physical, even for an RTL paragraph.
+        job.halign_min_is_start = false;
+        // Mirroring moves the galley as a whole. Its rows retain physical alignment while
+        // the box itself is positioned in logical worksheet coordinates.
+        job.halign = match painted_halign(halign, geo.rtl) {
             HAlign::Center | HAlign::CenterAcross => egui::Align::Center,
             HAlign::Right => egui::Align::RIGHT,
             _ => egui::Align::LEFT,
         };
         let galley = p.layout_job(job);
-        let x = match halign {
-            HAlign::Center | HAlign::CenterAcross => rect.center().x,
-            HAlign::Right => rect.right() - pad,
+        let left = match halign {
+            HAlign::Center | HAlign::CenterAcross => rect.center().x - galley.size().x / 2.0,
+            HAlign::Right => rect.right() - pad - indent - galley.size().x,
             _ => text_left + pad + indent,
         };
+        let x = left - galley.rect.left();
         let y = wrapped_cell_text_y(st.align.v, *rect, galley.size().y, z);
         let text_clip = wrapped_text_clip(p, *rect, &galley, y, st.align.v);
         p.with_clip_rect(text_clip).galley(pos2(x, y), galley, color);
@@ -502,7 +499,7 @@ fn paint_cell(q: &QuadrantPaint<'_>, painted: &(CellRef, Rect, Look, Option<CfLo
         } else {
             galley.clone()
         };
-        let pos = rotated_text_pos(*rect, galley.size(), angle, painted_halign(st.align.h, geo.rtl), st.align.v, pad, indent);
+        let pos = rotated_text_pos(*rect, galley.size(), angle, halign, st.align.v, pad, indent);
         let mut shape = egui::epaint::TextShape::new(pos, galley, color);
         shape.angle = angle;
         cp.add(shape);

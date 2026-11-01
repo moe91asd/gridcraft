@@ -121,11 +121,11 @@ fn language_reorders_only_the_han_faces() {
     let keys = |han| fallback_faces(han).into_iter().map(|(k, _)| k).collect::<Vec<_>>();
     assert_eq!(
         keys(HanOrder::Japanese),
-        ["sys-cjk-han-ja", "sys-cjk-han-zh", "sys-cjk-hangul", "sys-thai", "sys-lao", "sys-hebrew", "sys-symbols", "sys-symbols-2"]
+        ["sys-cjk-han-ja", "sys-cjk-han-zh", "sys-cjk-hangul", "sys-thai", "sys-lao", "sys-hebrew", "sys-arabic", "sys-symbols", "sys-symbols-2"]
     );
     assert_eq!(
         keys(HanOrder::Chinese),
-        ["sys-cjk-han-zh", "sys-cjk-han-ja", "sys-cjk-hangul", "sys-thai", "sys-lao", "sys-hebrew", "sys-symbols", "sys-symbols-2"]
+        ["sys-cjk-han-zh", "sys-cjk-han-ja", "sys-cjk-hangul", "sys-thai", "sys-lao", "sys-hebrew", "sys-arabic", "sys-symbols", "sys-symbols-2"]
     );
     assert_eq!(HanOrder::of(Language::Ja), HanOrder::Japanese);
     for l in [Language::En, Language::Zh, Language::Ko, Language::Ru, Language::PtBr, Language::De, Language::Cs, Language::Fr, Language::Tr] {
@@ -193,7 +193,7 @@ fn fallback_covers_its_script() {
         ("sys-thai", thai(), "ทดสอบ"),
         ("sys-lao", lao(), "ພາສາລາວ"),
         ("sys-hebrew", hebrew(), "עברית"),
-        ("craft-noto-sans-arabic", Vec::new(), "مرحبا"),
+        ("sys-arabic", arabic(), "مرحبا"),
         ("craft-noto-sans-georgian", Vec::new(), "ქართული"),
         ("ui", candidates(UI), "Русский"),
         // Czech interface labels: every Czech accented letter, in both cases.
@@ -219,6 +219,28 @@ fn fallback_covers_its_script() {
             }
         }
     }
+}
+
+#[test]
+fn available_arabic_face_shapes_joining_forms_and_preserves_digit_order() {
+    let ctx = egui::Context::default();
+    ctx.set_fonts(font_definitions_for_language(Language::En));
+    let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
+    out.textures_delta.clear();
+    let font = FontId::new(20.0, FontFamily::Name(CELL.into()));
+    if !ctx.fonts_mut(|f| f.has_glyph(&font, 'ب')) {
+        eprintln!("skipped Arabic shaping: no system or craft-fonts Arabic face");
+        return;
+    }
+    let (isolated, joined) =
+        ctx.fonts_mut(|f| (f.layout_no_wrap("ب".into(), font.clone(), Color32::BLACK), f.layout_no_wrap("بب 123".into(), font, Color32::BLACK)));
+    let row = &joined.rows[0];
+    assert!(row.rtl_paragraph);
+    assert!(row.glyphs[0].pos.x > row.glyphs[1].pos.x, "Arabic runs right to left");
+    assert_ne!(row.glyphs[0].uv_rect, isolated.rows[0].glyphs[0].uv_rect, "the initial form must differ from isolated beh");
+    let digits: Vec<_> = row.glyphs.iter().filter(|g| g.chr.is_ascii_digit()).collect();
+    assert_eq!(digits.len(), 3);
+    assert!(digits.windows(2).all(|w| w[0].pos.x < w[1].pos.x));
 }
 
 #[test]

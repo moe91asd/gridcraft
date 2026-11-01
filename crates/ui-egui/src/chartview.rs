@@ -199,7 +199,12 @@ fn paint_shape_text(p: &Painter, wb: &Workbook, sp: &gridcraft_engine::model::Sh
     use gridcraft_engine::model::{ShapeTextAlign, ShapeTextAnchor};
     let f = &sp.format;
     let text_box = sp.kind == ShapeKind::TextBox;
-    let align = f.align.unwrap_or(if text_box { ShapeTextAlign::Left } else { ShapeTextAlign::Center });
+    let default_align = match (text_box, f.rtl) {
+        (true, true) => ShapeTextAlign::Right,
+        (true, false) => ShapeTextAlign::Left,
+        _ => ShapeTextAlign::Center,
+    };
+    let align = f.align.unwrap_or(default_align);
     let anchor = f.anchor.unwrap_or(if text_box { ShapeTextAnchor::Top } else { ShapeTextAnchor::Middle });
     let default_color = if text_box { Color32::BLACK } else { Color32::WHITE };
     let color = f.text_color.and_then(|c| c.resolve(&wb.theme)).map(theme::color32).unwrap_or(default_color);
@@ -209,6 +214,10 @@ fn paint_shape_text(p: &Painter, wb: &Workbook, sp: &gridcraft_engine::model::Sh
     let inset = 4.0;
     let width = (r.width() - 2.0 * inset).max(1.0);
     let mut job = egui::text::LayoutJob::simple(sp.text.clone(), FontId::new(size, family), color, width);
+    job.halign_min_is_start = false;
+    if f.rtl {
+        job.direction = egui::epaint::text::TextDirection::RightToLeft;
+    }
     job.halign = match align {
         ShapeTextAlign::Left => egui::Align::LEFT,
         ShapeTextAlign::Center => egui::Align::Center,

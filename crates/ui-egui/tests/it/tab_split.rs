@@ -151,3 +151,16 @@ fn each_workbook_keeps_its_own_tab_share() {
     assert!(track(&h).left() < 400.0, "a new workbook starts at the default share: {:?}", track(&h));
     assert_eq!(h.state().grid.tab_shares.len(), 1, "only the dragged workbook has a share");
 }
+
+#[test]
+fn rtl_split_handle_moves_left_to_give_tabs_more_room() {
+    let mut h = harness(1200.0, 30);
+    h.state_mut().session.execute("view.rightToLeft", json!({"on":true})).unwrap();
+    h.run_steps(20);
+    let (before, handle) = (strip(&h), split(&h));
+    drag(&mut h, handle.center(), pos2(200.0, handle.center().y));
+    assert!(strip(&h).width() > before.width() + 200.0);
+    assert!((split(&h).center().x - 200.0).abs() <= 2.0);
+    assert_eq!(track(&h).right(), split(&h).left());
+    assert!(track(&h).width() >= 100.0 - 0.5);
+}

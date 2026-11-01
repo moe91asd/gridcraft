@@ -62,6 +62,25 @@ const SPLIT_WIDTH: f32 = 8.0;
 /// The narrowest the scrollbar track gets when the handle is dragged to the right.
 const MIN_TRACK: f32 = 100.0;
 
+/// Tab sizing uses coordinates increasing from the navigation buttons towards the scrollbar.
+/// Only this boundary converts them to/from physical screen coordinates.
+#[derive(Clone, Copy)]
+struct TabGeometry {
+    axis: Option<f32>,
+    bar: (f32, f32),
+    end: f32,
+}
+
+impl TabGeometry {
+    fn x(self, x: f32) -> f32 {
+        self.axis.map_or(x, |axis| axis - x)
+    }
+
+    fn rect(self, rect: Rect) -> Rect {
+        if self.axis.is_some() { Rect::from_min_max(pos2(self.x(rect.right()), rect.top()), pos2(self.x(rect.left()), rect.bottom())) } else { rect }
+    }
+}
+
 /// The share of the tab bar (`bar`: its left edge and width) the tabs and New sheet take with
 /// the handle dragged to `x`: New sheet stays shown, and the track ending at `right` keeps
 /// [`MIN_TRACK`].
@@ -77,7 +96,7 @@ fn dragged_share(x: f32, bar: (f32, f32), right: f32) -> f32 {
 
 /// The handle at the left edge of the horizontal scrollbar: dragging it gives the sheet tabs more
 /// or less of the bar, as in Excel, for the workbook `uid`.
-fn tab_split_handle(app: &mut SheetApp, ui: &mut Ui, split: Rect, bar: (f32, f32), right: f32, uid: u64, t: &Tokens) {
+fn tab_split_handle(app: &mut SheetApp, ui: &mut Ui, split: Rect, geo: TabGeometry, uid: u64, t: &Tokens) {
     app.grid.tab_split = Some(split);
     let resp = ui.interact(split, ui.scope_id().with("tab_split"), Sense::drag());
     let name = app.ui.language.tr("Split tabs");
@@ -88,7 +107,7 @@ fn tab_split_handle(app: &mut SheetApp, ui: &mut Ui, split: Rect, bar: (f32, f32
     if resp.dragged()
         && let Some(p) = resp.interact_pointer_pos()
     {
-        app.grid.tab_shares.insert(uid, dragged_share(p.x - SPLIT_WIDTH / 2.0, bar, right));
+        app.grid.tab_shares.insert(uid, dragged_share(geo.x(p.x) - SPLIT_WIDTH / 2.0, geo.bar, geo.end));
         ui.ctx().request_repaint();
     }
     let color = if resp.hovered() || resp.dragged() { t.text_dim } else { t.text_disabled };
@@ -102,14 +121,33 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     egui::Panel::bottom("sheet_tabs").exact_size(32.0).frame(egui::Frame::NONE.fill(t.tab_bar)).show(ui, |ui| {
         let rect = ui.max_rect();
+        let rtl = app.session.active().and_then(|d| d.wb.active()).is_some_and(|s| s.right_to_left);
+        let axis = rtl.then_some(rect.left() + rect.right());
+        let layout = if rtl { egui::Layout::right_to_left(egui::Align::Center) } else { egui::Layout::left_to_right(egui::Align::Center) };
         ui.painter().line_segment([rect.left_top(), rect.right_top()], Stroke::new(1.0, t.ribbon_border));
-        ui.horizontal_centered(|ui| {
+        ui.allocate_ui_with_layout(rect.size(), layout, |ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             ui.add_space(8.0);
-            if crate::widgets::icon_button(ui, Icon::Left, t.text_dim, app.ui.language.tr("Previous sheet"), vec2(24.0, 24.0)).clicked() {
+            if crate::widgets::icon_button(
+                ui,
+                if rtl { Icon::Right } else { Icon::Left },
+                t.text_dim,
+                app.ui.language.tr("Previous sheet"),
+                vec2(24.0, 24.0),
+            )
+            .clicked()
+            {
                 app.run_or_alert("sheet.previous", json!({}));
             }
-            if crate::widgets::icon_button(ui, Icon::Right, t.text_dim, app.ui.language.tr("Next sheet"), vec2(24.0, 24.0)).clicked() {
+            if crate::widgets::icon_button(
+                ui,
+                if rtl { Icon::Left } else { Icon::Right },
+                t.text_dim,
+                app.ui.language.tr("Next sheet"),
+                vec2(24.0, 24.0),
+            )
+            .clicked()
+            {
                 app.run_or_alert("sheet.next", json!({}));
             }
             let all = crate::widgets::icon_button(ui, Icon::SheetList, t.text_dim, app.ui.language.tr("All sheets"), vec2(24.0, 24.0));
@@ -124,11 +162,13 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
             }
             ui.add_space(8.0);
             let Some(d) = app.session.active() else { return };
-            let (bar_left, bar_width) = (ui.cursor().left(), ui.available_width());
+            let bar_left = axis.map_or(ui.cursor().left(), |axis| axis - ui.cursor().right());
+            let bar_width = ui.available_width();
             let uid = d.uid;
             // The track ends where the grid does, so it stops under the vertical scrollbar. A share
             // dragged in a wider window is held to the same limits as a drag at this width.
-            let bar_right = app.grid.rect.map_or(bar_left + bar_width, |r| r.right()).min(bar_left + bar_width);
+            let bar_right = app.grid.rect.map_or(bar_left + bar_width, |r| axis.map_or(r.right(), |axis| axis - r.left())).min(bar_left + bar_width);
+            let geo = TabGeometry { axis, bar: (bar_left, bar_width), end: bar_right };
             let share = app.grid.tab_shares.get(&uid).map(|&share| dragged_share(bar_left + bar_width * share, (bar_left, bar_width), bar_right));
             let sheets: Vec<(usize, String, Option<[u8; 3]>, bool)> =
                 d.wb.sheets
@@ -148,20 +188,35 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
             };
             // Reveal the selected sheet after navigation or layout changes, but
             // allow browsing other tabs without snapping back on every frame.
-            let reveal_key = egui::Id::unique((d.uid, d.wb.active_sheet(), &sheets, tabs_width.to_bits()));
+            let reveal_key = egui::Id::unique((d.uid, d.wb.active_sheet(), &sheets, tabs_width.to_bits(), rtl));
             let reveal_id = ui.scope_id().with("worksheet_tabs_reveal");
             let reveal_active = ui.ctx().data_mut(|data| {
                 let changed = data.get_temp::<egui::Id>(reveal_id) != Some(reveal_key);
                 data.insert_temp(reveal_id, reveal_key);
                 changed
             });
-            ui.allocate_ui_with_layout(vec2(tabs_width, 30.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            let content_width: f32 = sheets
+                .iter()
+                .map(|(_, name, _, active)| {
+                    let font = if *active { theme::ui_bold(13.0) } else { theme::ui_font(13.0) };
+                    (ui.painter().layout_no_wrap(name.clone(), font, t.text).size().x + 32.0).max(72.0)
+                })
+                .sum();
+            // ScrollArea offsets increase from its left edge. Give its content a finite positive
+            // width before arranging RTL tabs, so overflow/reveal can reach both ends.
+            ui.allocate_ui_with_layout(vec2(tabs_width.min(content_width), 30.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 // Translate vertical wheel movement into horizontal
                 // worksheet-tab scrolling.
                 let wheel_scroll = if ui.rect_contains_pointer(ui.max_rect()) {
                     ui.input(|i| {
                         let d = i.smooth_scroll_delta;
-                        if d.x.abs() > d.y.abs() { d.x } else { d.y }
+                        if d.x.abs() > d.y.abs() {
+                            d.x
+                        } else if rtl {
+                            -d.y
+                        } else {
+                            d.y
+                        }
                     })
                 } else {
                     0.0
@@ -176,7 +231,7 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
                         if wheel_scroll.abs() > 0.0 {
                             ui.scroll_with_delta(vec2(wheel_scroll, 0.0));
                         }
-                        ui.horizontal(|ui| {
+                        ui.allocate_ui_with_layout(vec2(content_width, 30.0), layout, |ui| {
                             ui.spacing_mut().item_spacing.x = 0.0;
                             for (i, name, color, active) in sheets {
                                 let renaming = app.grid.renaming_tab == Some(i);
@@ -242,7 +297,7 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
                                 if resp.drag_stopped()
                                     && let Some(p) = ui.input(|inp| inp.pointer.interact_pos())
                                 {
-                                    let dx = p.x - r.center().x;
+                                    let dx = geo.x(p.x) - geo.x(r.center().x);
                                     let steps = (dx / w).round() as i64;
                                     if let Some(params) = tab_drop(i, steps, copy) {
                                         app.run_or_alert("sheet.move", params);
@@ -305,16 +360,16 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
                 app.run_or_alert("home.insertSheet", json!({}));
             }
             // The track ends where the grid does, so it stops under the vertical scrollbar.
-            let avail = ui.available_rect_before_wrap();
-            let right = app.grid.rect.map_or(avail.right(), |r| r.right()).min(avail.right());
+            let avail = geo.rect(ui.available_rect_before_wrap());
+            let right = bar_right.min(avail.right());
             // The handle sits at the track's left edge. With a dragged share, the room the tabs
             // don't fill stays empty before it.
             let split_left =
                 share.map_or(avail.left(), |share| (bar_left + bar_width * share).min(right - SPLIT_WIDTH - MIN_TRACK).max(avail.left()));
             let split = Rect::from_min_max(pos2(split_left, avail.top()), pos2(split_left + SPLIT_WIDTH, avail.bottom()));
-            tab_split_handle(app, ui, split, (bar_left, bar_width), right, uid, &t);
+            tab_split_handle(app, ui, geo.rect(split), geo, uid, &t);
             let track = Rect::from_min_max(pos2(split.right(), avail.center().y - 7.0), pos2(right, avail.center().y + 7.0));
-            crate::grid::horizontal_scrollbar(app, ui, track, &t);
+            crate::grid::horizontal_scrollbar(app, ui, geo.rect(track), &t);
         });
     });
 }

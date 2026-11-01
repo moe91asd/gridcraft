@@ -310,3 +310,17 @@ pub(super) fn painted_halign(h: HAlign, rtl: bool) -> HAlign {
         h => h,
     }
 }
+
+/// Alignment in the grid's logical coordinates, before worksheet mirroring. General text
+/// follows its paragraph; numbers retain the worksheet's numeric convention.
+pub(super) fn value_halign(h: HAlign, v: &Value, numeric: bool, text: &str, rtl: bool) -> HAlign {
+    if h != HAlign::General {
+        return painted_halign(h, rtl);
+    }
+    match v {
+        Value::Number(_) => HAlign::Right,
+        Value::Bool(_) | Value::Error(_) => HAlign::Center,
+        _ if numeric => HAlign::Right,
+        _ => painted_halign(if crate::text_direction::alignment(text) == egui::Align::RIGHT { HAlign::Right } else { HAlign::Left }, rtl),
+    }
+}
