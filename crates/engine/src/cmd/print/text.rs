@@ -56,6 +56,7 @@ fn text_align(align: HAlign, value: &Value) -> HAlign {
         HAlign::General => match value {
             Value::Number(_) => HAlign::Right,
             Value::Bool(_) | Value::Error(_) => HAlign::Center,
+            Value::Text(t) if gridcraft_pdf::is_rtl(t) => HAlign::Right,
             _ => HAlign::Left,
         },
         HAlign::CenterAcross | HAlign::Distributed => HAlign::Center,
@@ -178,7 +179,14 @@ pub(super) fn draw_text(pg: &mut Page, b: &Block, placement: TextPlacement<'_>) 
         text = "#".repeat(((avail / hash).floor().max(1.0) as usize).min(255));
         tw = gridcraft_pdf::text_width(font, size, &text);
     }
-    let h_align = text_align(st.align.h, &v);
+    let mut h_align = text_align(st.align.h, &v);
+    if sh.right_to_left && (st.align.h != HAlign::General || !is_num) {
+        h_align = match h_align {
+            HAlign::Left => HAlign::Right,
+            HAlign::Right => HAlign::Left,
+            h => h,
+        };
+    }
     let rot = st.align.rotation;
     let rotated = rot != 0 && rot != 255;
     // Rotated text wraps along its own direction: upright (±90°) text to the row height.

@@ -8,17 +8,24 @@
 //! - RGBA images as RGB image XObjects with a soft mask for alpha (run-length encoded).
 //! - Coordinates are points with a **top-left origin** (y grows down); text `y` is the baseline.
 //!
-//! Streams are written uncompressed (images use the trivial RunLengthDecode filter) so the crate
-//! needs no dependencies.
+//! Native complex text is shaped with HarfRust and drawn as font-derived vector outlines.
+//! The PDF reader needs no installed Arabic/Hebrew font; no font files are bundled here.
+//! Streams are written uncompressed (images use the trivial RunLengthDecode filter).
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![forbid(unsafe_code)]
 
 mod metrics;
+mod shaped;
 
 use std::fmt::Write as _;
 
 /// RGB colour, 0–255 per channel.
 pub type Rgb = [u8; 3];
+
+/// First-strong Unicode paragraph direction.
+pub fn is_rtl(text: &str) -> bool {
+    unicode_bidi::get_base_direction(text) == unicode_bidi::Direction::Rtl
+}
 
 /// A point in page coordinates, measured from the top-left corner.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -178,6 +185,9 @@ impl Font {
 
 /// Width of `text` in points when set in `font` at `size` points.
 pub fn text_width(font: Font, size: f32, text: &str) -> f32 {
+    if let Some(shaped) = shaped::layout(font, size, text, false) {
+        return shaped.width;
+    }
     // u64: a u32 sum overflows for ~8 million characters.
     let units: u64 = text.chars().map(|c| u64::from(font.char_width(c))).sum();
     units as f32 * size / 1000.0
@@ -351,6 +361,7 @@ pub struct Page {
     images: Vec<ImageData>,
     links: Vec<LinkAnnotation>,
     depth: u32,
+    mirror: Option<f32>,
 }
 
 /// Most bytes of content per page before further drawing is dropped (keeps hostile inputs from
@@ -362,6 +373,19 @@ const MAX_PAGE_LINKS: usize = 4096;
 const MAX_LINK_URI_BYTES: usize = 4096;
 
 impl Page {
+    /// Reflect sheet geometry across `axis / 2`; text and images keep their reading direction.
+    pub fn begin_horizontal_mirror(&mut self, axis: f32) {
+        if self.mirror.is_none() && axis.is_finite() {
+            self.save();
+            self.op(&format!("-1 0 0 1 {} 0 cm", n(axis)));
+            self.mirror = Some(axis);
+        }
+    }
+    pub fn end_horizontal_mirror(&mut self) {
+        if self.mirror.take().is_some() {
+            self.restore();
+        }
+    }
     pub fn width(&self) -> f32 {
         self.width
     }
@@ -382,7 +406,10 @@ impl Page {
     }
 
     fn link_rect(&self, rect: Rect) -> Option<[f32; 4]> {
-        let Rect { x, y, width, height } = rect;
+        let Rect { mut x, y, width, height } = rect;
+        if let Some(axis) = self.mirror {
+            x = axis - x - width;
+        }
         if !finite(&[x, y, width, height]) || !extent(width) || !extent(height) || self.links.len() >= MAX_PAGE_LINKS {
             return None;
         }
@@ -582,8 +609,34 @@ impl Page {
             return;
         }
         let fi = font.index();
-        let size = n(size.min(10_000.0));
+        let mirrored = self.mirror.is_some();
+        if mirrored {
+            self.save();
+            self.op(&format!("-1 0 0 1 {} 0 cm", n(2.0 * origin.x + text_width(font, size, text))));
+        }
+        let draw_size = size.min(10_000.0);
+        let size = n(draw_size);
         let (sn, cs) = if angle.is_finite() { angle.sin_cos() } else { (0.0, 1.0) };
+        if let Some(shaped) = shaped::layout(font, draw_size, text, true) {
+            self.save();
+            self.op(&format!(
+                "{} {} {} {} {} {} cm\n{}\n/Span << /ActualText <FEFF{}> >> BDC\n{}f\nEMC",
+                n(cs),
+                n(-sn),
+                n(sn),
+                n(cs),
+                n(origin.x),
+                n(self.y(origin.y)),
+                rgb_op(color, false),
+                text.encode_utf16().map(|u| format!("{u:04X}")).collect::<String>(),
+                shaped.paths
+            ));
+            self.restore();
+            if mirrored {
+                self.restore();
+            }
+            return;
+        }
         // Clockwise in y-down = counter-clockwise negated in PDF's y-up space.
         let mut s = format!("BT\n{}\n{} {} {} {} {} {} Tm\n", rgb_op(color, false), n(cs), n(-sn), n(sn), n(cs), n(origin.x), n(self.y(origin.y)));
         // Runs of WinAnsi text use `font`; runs it cannot encode use the CID font. Each `Tj`
@@ -602,6 +655,9 @@ impl Page {
         }
         s.push_str("ET");
         self.op(&s);
+        if mirrored {
+            self.restore();
+        }
     }
 
     /// Draws an RGBA image (`pw`×`ph` pixels, row-major, straight alpha) into the box
@@ -624,7 +680,11 @@ impl Page {
         let idx = self.images.len();
         self.images.push(ImageData { width: pw, height: ph, rgb, alpha });
         let s = format!("q {} 0 0 {} {} {} cm /Im{} Do Q", n(w), n(h), n(x), n(self.y(y + h)), idx + 1);
-        self.op(&s);
+        if self.mirror.is_some() {
+            self.op(&format!("q -1 0 0 1 {} 0 cm\n{s}\nQ", n(2.0 * x + w)));
+        } else {
+            self.op(&s);
+        }
     }
 }
 
@@ -708,7 +768,16 @@ impl PdfDoc {
     pub fn add_page(&mut self, width_pt: f32, height_pt: f32) -> &mut Page {
         let width = if width_pt.is_finite() { width_pt.clamp(3.0, 14_400.0) } else { 612.0 };
         let height = if height_pt.is_finite() { height_pt.clamp(3.0, 14_400.0) } else { 792.0 };
-        self.pages.push(Page { width, height, content: String::new(), fonts: [false; FONT_SLOTS], images: Vec::new(), links: Vec::new(), depth: 0 });
+        self.pages.push(Page {
+            width,
+            height,
+            content: String::new(),
+            fonts: [false; FONT_SLOTS],
+            images: Vec::new(),
+            links: Vec::new(),
+            depth: 0,
+            mirror: None,
+        });
         let i = self.pages.len() - 1;
         &mut self.pages[i]
     }

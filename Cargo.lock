@@ -2078,6 +2078,11 @@ dependencies = [
 [[package]]
 name = "gridcraft-pdf"
 version = "0.14.2"
+dependencies = [
+ "harfrust",
+ "skrifa",
+ "unicode-bidi",
+]
 
 [[package]]
 name = "gridcraft-ui-egui"

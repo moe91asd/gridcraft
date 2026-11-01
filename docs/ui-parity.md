@@ -49,7 +49,7 @@ this logic, with one undo step.
 
 | Behaviour | Status |
 |---|---|
-| RTL worksheets and paragraph text | Mirrored grid, tabs, navigation, reorder, split handle and horizontal scrolling. General text aligns by paragraph direction; explicit Left/Right stays physical when wrapped. Cells/editors use pinned egui shaping/bidi; native Arabic fallback and imported RTL shape paragraph rendering/editing are connected. RTL application chrome and print/PDF parity remain gaps |
+| RTL worksheets and paragraph text | Mirrored grid, tabs, navigation, reorder, split handle and horizontal scrolling. General text aligns by paragraph direction; explicit Left/Right stays physical when wrapped. Cells/editors use pinned egui shaping/bidi; native Arabic fallback and imported RTL shape paragraph rendering/editing are connected. Native print/PDF mirrors RTL sheets and uses shaped Arabic/Hebrew vector glyphs. RTL application chrome and browser font input remain gaps |
 | Click/drag/Shift/Ctrl selection, multi-area selection | rectangular drag works in one direction only in some cases (#28) |
 | Cursor while dragging cells, headers, freeze handles and objects | stable for the active drag (#936); Draw tools keep their crosshair; header arrows and a custom cell cursor remain unimplemented |
 | Selection outline glides to a new selection (Excel: "Provide feedback with animation") | done (10-11): 0.12 s, decelerating, with the fill and fill handle; View ▸ Animations (`view.animations`) turns it off. The timing is an estimate, not yet measured against Excel; the system's reduced-motion setting isn't followed yet |
@@ -195,6 +195,7 @@ scrollbar bugs 2–4 · pixel/feel pass against observed Excel 7–12.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-01 | minor | Native print/PDF export mirrors RTL worksheets and shapes Arabic/Hebrew with installed-font vector outlines; print regression tests and rendered synthetic RTL worksheet verified |
 | 2026-11-01 | minor | RTL worksheet tab layout/navigation/reorder/split handle; paragraph-aware cell/editor alignment and native Arabic fallback; saved shape paragraph direction used by painting and editing |
 | 2026-10-30 | minor | Checkbox cells print and export to PDF as boxes, as on screen: unchecked white with a grey outline, checked green with a white tick (#2972). They printed their value as TRUE or FALSE; other values in a checkbox cell still print as text |
 | 2026-10-29 | minor | Formula pointing from the keyboard: Ctrl+arrow (⌘arrow) moves the pointed cell to the edge of its data and Ctrl+Shift+arrow (⌘⇧arrow) extends the pointed range there, as the same keys move and extend the selection, so typing `=COUNTIF(`, clicking the top of a column and pressing ⌘⇧↓ points at the whole column of data; the keys used to move or extend by one cell. A range reaching the sheet edge is written as whole columns or rows (`A:B`). The editor reads the modifiers of the arrow's own key event, so a keystroke pressed and released within one frame (a control client's `ui.key`, an automation tool) keeps its Shift and Ctrl |

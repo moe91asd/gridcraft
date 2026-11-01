@@ -17,6 +17,21 @@ fn contains(hay: &[u8], needle: &str) -> bool {
 }
 
 #[test]
+fn rtl_print_reflects_sheet_geometry_and_keeps_header_footer_outside_the_reflection() {
+    let mut session = s();
+    session.execute("range.setValues", json!({"range":"A1", "values":[["First", "Second"], [123, 456]]})).unwrap();
+    let (ltr, _) = pdf_of(&mut session, json!({}));
+    assert!(!contains(&ltr, "-1 0 0 1"));
+    session.execute("view.rightToLeft", json!({"on":true})).unwrap();
+    session.execute("pageLayout.pageSetup", json!({"header":"&CHeader"})).unwrap();
+    let (rtl, pages) = pdf_of(&mut session, json!({}));
+    assert_eq!(pages, 1);
+    assert!(contains(&rtl, "-1 0 0 1"));
+    assert!(contains(&rtl, "(First) Tj") && contains(&rtl, "(Second) Tj"));
+    assert!(contains(&rtl, "(Header) Tj"));
+}
+
+#[test]
 fn pdf_export_keeps_safe_links_on_their_printed_pages() {
     let mut s = s();
     s.execute("insert.link", json!({"cell": "A1", "target": "https://example.org/report"})).unwrap();

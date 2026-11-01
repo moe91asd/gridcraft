@@ -1,6 +1,12 @@
 # gridcraft-pdf
 
-A small, dependency-free PDF 1.7 writer for vector drawing and RGBA images.
+A small PDF 1.7 writer for vector drawing, RGBA images and native complex text.
+
+Native Arabic/Hebrew text uses Unicode bidi and HarfRust shaping with installed OpenType
+fonts, then writes glyph outlines so the reader needs no matching font. Logical Unicode is
+retained as ActualText. No font files are bundled or copied into this repository. On a host
+without a covering font (including the current browser build), the existing PDF fallback
+remains. ASCII text continues to use the standard PDF fonts.
 
 ## API migration
 

@@ -58,13 +58,16 @@ right-to-left sheets and full complex-script support. Part of
   remains physical, including wrapped text. Cell and formula-bar editors keep logical Unicode
   text and bidi cursor handling; formulas use a left-to-right base direction. Text boxes and
   shapes render their saved paragraph direction (`a:pPr rtl`), including in the text-box editor.
-  Printing/PDF sheet mirroring, non-Latin PDF fonts, a translated RTL application interface and
+  Native printing/PDF mirrors sheet geometry and shapes Arabic/Hebrew using installed fonts,
+  drawing portable glyph outlines and retaining logical Unicode as ActualText. A host without
+  a covering font still uses the older fallback. Embedded subset fonts, a translated RTL application interface and
   browser Arabic/Hebrew font coverage remain gaps. IME input goes
   through egui/winit and is unverified for Chinese, Japanese and Korean.
 - **Names in any script.** Defined names (Define Name, Create from Selection) are limited to
   255 characters, counted as characters rather than UTF-8 bytes, so a 255-letter Arabic name is
   accepted as in Excel. Sheet names already counted characters (31).
-- **PDF export** uses only the 14 standard PDF fonts: non-Latin text cannot export.
+- **PDF export** shapes native Arabic/Hebrew with installed fonts and emits vector glyphs;
+  font subsetting, browser font input and broader complex-script/font coverage remain gaps.
 
 ## Languages
 
@@ -78,7 +81,7 @@ separators, number/date formats, machine translation with agent review, and scri
 | Simplified Chinese (Mandarin) | zh-Hans | 266 (~12%) | no | CJK system-font fallback (#38); IME unverified; PDF can't export | no | menus only | 8–13 h |
 | Spanish | es | 0 (0%) | no | Latin: yes | no | none | 6–10 h |
 | Hindi | hi | 0 (0%) | no | Shaping through pinned egui; Devanagari font coverage and IME unverified | no | none | 12–18 h |
-| Arabic | ar | 0 (0%) | no | Shaping/bidi through pinned egui; native Arabic fallback; mirrored grid and tabs; no translated RTL UI or non-Latin PDF | no | script support, no catalog | 25–35 h |
+| Arabic | ar | 0 (0%) | no | Shaping/bidi through pinned egui; native Arabic fallback; mirrored grid and tabs; native PDF glyph outlines; no translated RTL UI | no | script support, no catalog | 25–35 h |
 | French | fr | 0 (0%) | no | Latin: yes | no | none | 6–10 h |
 | Portuguese | pt-BR | 943 (~43%) | dialogs and tooltips (dialogs take effect with #669) | Latin: yes | no | menus, File view, dialogs | 2–4 h |
 | Indonesian | id | 0 (0%) | no | Latin: yes | no | none | 5–8 h |
@@ -110,12 +113,13 @@ language (none so far) and of localized function names.
    separators in CSV.
 3. Validate complex-script shaping and IME across platforms. Grid and editor bidi/shaping use the
    pinned egui fork; RTL tabs and native Arabic fallback are connected. Remaining: browser
-   Arabic/Hebrew faces, right-to-left printing, and shaped text with embedded subset fonts in PDF.
+   Arabic/Hebrew faces and embedded subset fonts in PDF (native RTL printing uses shaped outlines).
 
 ## Revision history
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-01 | minor | Native PDF/printing mirrors RTL sheets (including headings, repeated title blocks and links); Arabic/Hebrew uses bidi and OpenType-shaped vector glyphs from installed fonts. No reader font installation is required; no font files added to the repository. Browser font input and embedded subsetting remain gaps |
 | 2026-11-01 | minor | RTL worksheet tabs, navigation, reorder and split handle; direction-aware General cell alignment and editors without reversing Unicode; explicit wrapped alignment; saved RTL shape paragraph direction used for painting/editing; native Arabic fallback. Printing/PDF and translated RTL chrome remain gaps |
 | 2026-10-23 | minor | Missing translations are reported, never a failure: `cargo xtask i18n-report` prints, per language, the strings other catalogs translate and it lacks (plus Spanish function help rows keyed by English the function catalog no longer has) and always passes; `cargo xtask ci` runs it first. Coverage and per-language parity tests and tests of one language's exact wording are gone; UI tests take the expected text from the catalog. Duplicate-key, placeholder, context-prefix and line-shape checks stay |
 | 2026-10-21 | minor | Romanian interface (`ro`, Română): 970 labels covering every key of the other catalogs (`crates/ui-egui/src/i18n/ro.rs`), `ro-*` system locales, the View-tab switcher and `app.language.set`; context keys show no prefix (File › Options test). English formulas and formats; AI-assisted draft pending native-speaker review |

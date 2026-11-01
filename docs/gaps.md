@@ -53,12 +53,12 @@ No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-
 - **Estimate:** 25–35 h for beta (40–60 h full). [chart-parity.md](chart-parity.md)
 
 ### 5. Text in non-Latin scripts doesn't render or export (L)
-- **Missing:** non-Latin PDF fonts/shaping, RTL printing, browser Arabic/Hebrew font coverage,
+- **Missing:** embedded PDF font subsetting, broader script/font coverage, browser Arabic/Hebrew font coverage,
   translated RTL chrome and cross-platform complex-script/IME validation.
 - **Evidence:** system-font fallback for CJK, Thai and Hebrew landed in #38 (closed #32); #142
   (Chinese text) awaits confirmation; #54 (symbols as boxes on Fedora). The pinned egui fork
   supplies shaping/bidi; worksheet tabs, paragraph alignment, editors, RTL shape paragraphs and
-  native Arabic fallback are connected (11-01). PDF writer uses 14 standard fonts only.
+  native Arabic fallback are connected (11-01). Native PDF now mirrors RTL sheets and shapes Arabic/Hebrew into portable vector glyphs using installed fonts.
 - **Impact:** blocks most of the world's users even with an English UI.
 - **Estimate:** 12–20 h. [localization-parity.md](localization-parity.md)
 
@@ -185,6 +185,7 @@ No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-01 | minor | Native RTL printing and Arabic/Hebrew shaped PDF vector glyphs address the print/text portions of §5; embedded font subsetting and broader script/font coverage remain |
 | 2026-11-01 | minor | §5 now records native RTL text and sheet-tab support; remaining gaps include PDF/printing, browser script fonts, translated RTL chrome and platform validation |
 | 2026-10-24 | minor | §8: PivotTable Enable show details: `pivot.options` `enableShowDetails` turns Show Details off for a PivotTable, read and written in XLSX as `enableDrill` |
 | 2026-10-23 | minor | §8: PivotTable Show Details: double-clicking a value cell lists its source records on a new sheet (#2364) |

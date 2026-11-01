@@ -1,4 +1,36 @@
 use super::*;
+
+#[test]
+fn rtl_geometry_preserves_text_and_mirrors_link_rectangles() {
+    let mut d = PdfDoc::new();
+    let p = d.add_page(300.0, 200.0);
+    p.begin_horizontal_mirror(300.0);
+    p.text(20.0, 30.0, 12.0, Font::Helvetica, [0, 0, 0], "123");
+    p.link_uri(20.0, 20.0, 40.0, 20.0, "https://example.org");
+    p.end_horizontal_mirror();
+    let pdf = String::from_utf8_lossy(&d.finish()).into_owned();
+    assert!(pdf.contains("-1 0 0 1 300 0 cm"));
+    assert!(pdf.contains("/Rect [240 160 280 180]"));
+    assert!(pdf.contains("(123) Tj"));
+}
+
+#[test]
+fn available_arabic_fonts_produce_shaped_vectors_and_unicode_actual_text() {
+    let Some(shaped) = shaped::layout(Font::Helvetica, 12.0, "بب 123", true) else {
+        eprintln!("skipped: no installed Arabic font");
+        return;
+    };
+    assert!(!shaped.paths.is_empty());
+    assert_eq!(text_width(Font::Helvetica, 12.0, "بب 123"), shaped.width);
+    let isolated = shaped::layout(Font::Helvetica, 12.0, "ب ب", false).unwrap();
+    let joined = shaped::layout(Font::Helvetica, 12.0, "بب", false).unwrap();
+    assert!(joined.width < isolated.width);
+    let mut d = PdfDoc::new();
+    d.add_page(300.0, 200.0).text(20.0, 40.0, 12.0, Font::Helvetica, [0, 0, 0], "بب 123");
+    let pdf = String::from_utf8_lossy(&d.finish()).into_owned();
+    assert!(pdf.contains("/ActualText <FEFF062806280020003100320033>"));
+    assert!(!pdf.contains("/UniGB-UTF16-H"));
+}
 use std::error::Error;
 use std::io;
 

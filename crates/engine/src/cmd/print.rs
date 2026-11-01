@@ -100,6 +100,7 @@ pub fn render_pdf(wb: &Workbook, layouts: &[SheetLayout], file: &str, path: &str
     let mut page_no = 0usize;
     let mut pending_links = Vec::new();
     let mut printed_blocks = Vec::new();
+    let mut page_axes = Vec::new();
     // Decoded pictures are reused across the pages their anchor covers: a floating picture
     // spanning 40 pages was decoded (and pushed into the PDF) 40 times (#2389).
     let mut pics = PicCache::new();
@@ -115,10 +116,21 @@ pub fn render_pdf(wb: &Workbook, layouts: &[SheetLayout], file: &str, path: &str
             let csegs = segments(lay.title_cols, cband);
             let content_w = (lay.heading_w + csegs.iter().map(|s| seg_size(sh, *s, false)).sum::<f32>()) * k;
             let content_h = (lay.heading_h + rsegs.iter().map(|s| seg_size(sh, *s, true)).sum::<f32>()) * k;
-            let ox = lay.margins[0] + if lay.settings.center_h { ((aw - content_w) / 2.0).max(0.0) } else { 0.0 };
+            let ox = lay.margins[0]
+                + if lay.settings.center_h {
+                    ((aw - content_w) / 2.0).max(0.0)
+                } else if sh.right_to_left {
+                    (aw - content_w).max(0.0)
+                } else {
+                    0.0
+                };
             let oy = lay.margins[2] + if lay.settings.center_v { ((ah - content_h) / 2.0).max(0.0) } else { 0.0 };
             let page_index = doc.page_count();
             let pg = doc.add_page(lay.page_w, lay.page_h);
+            page_axes.push(sh.right_to_left.then_some(2.0 * ox + content_w));
+            if sh.right_to_left {
+                pg.begin_horizontal_mirror(2.0 * ox + content_w);
+            }
             let mut y = oy + lay.heading_h * k;
             let mut body: Option<Block> = None;
             for (rsi, rs) in rsegs.iter().enumerate() {
@@ -146,6 +158,7 @@ pub fn render_pdf(wb: &Workbook, layouts: &[SheetLayout], file: &str, path: &str
                 pg.fill_rect(ox, oy, lay.heading_w * k, lay.heading_h * k, fill);
                 pg.rect_stroke(ox, oy, lay.heading_w * k, lay.heading_h * k, 0.3, [0xA0, 0xA0, 0xA0]);
             }
+            pg.end_horizontal_mirror();
             let cx = HfContext {
                 page: page_no,
                 pages: total,
@@ -162,7 +175,11 @@ pub fn render_pdf(wb: &Workbook, layouts: &[SheetLayout], file: &str, path: &str
         if let Some((target_page, x, y)) = printed_target(wb, &printed_blocks, link.sheet, &link.target)
             && let Some(page) = doc.page_mut(link.page)
         {
-            let (lx, ly, w, h) = link.rect;
+            let (mut lx, ly, w, h) = link.rect;
+            if let Some(Some(axis)) = page_axes.get(link.page) {
+                lx = axis - lx - w;
+            }
+            let x = page_axes.get(target_page).copied().flatten().map_or(x, |axis| axis - x);
             page.link_page(Rect::new(lx, ly, w, h), target_page, Point::new(x, y));
         }
     }
