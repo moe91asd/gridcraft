@@ -23,7 +23,7 @@ mod window;
 pub(crate) use cells::is_checkbox_cell;
 use cells::{background, checkbox, draw_border, new_cell_style, recently_used, theme_colors, theme_fonts, toggle_checkbox, use_in_formula};
 use chart::{add_element, change_colors, format_series, move_chart, quick_layout, select_data};
-use data::{from_csv, from_table_range, queries, table_resize};
+use data::{from_csv, from_table_range, queries, table_append_row, table_resize};
 use objects::{align, arrange, rotate, selection_pane, shape_fill, shape_outline};
 pub(crate) use scripts::has_scripts;
 use scripts::{all_scripts, delete_script, new_script, record, run_script, stop_action, trust_scripts};
@@ -188,6 +188,15 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!(noundo "view.ruler", "Ruler", ["View", "Show"], None, "{on?} → {on}: rulers in Page Layout view (an application option)", has_doc, ruler),
         cmd!(query "view.macros", "Macros", ["View", "Macros"], None, "{} → scripts", has_doc, all_scripts),
         // Table tools
+        cmd!(
+            "table.appendRow",
+            "Append Table Row",
+            [],
+            None,
+            "{table?} → inserts a blank data row at the end of the selected table, before totals, and selects its first cell",
+            has_doc,
+            table_append_row
+        ),
         cmd!("table.resize", "Resize Table", ["Table Design", "Properties"], None, "{table?, range: \"A1:F20\"}", has_doc, table_resize),
         cmd!("table.removeDuplicates", "Remove Duplicates", ["Table Design", "Tools"], None, "{table?, columns?}", has_doc, |s, p| s
             .execute("data.removeDuplicates", p.clone())),

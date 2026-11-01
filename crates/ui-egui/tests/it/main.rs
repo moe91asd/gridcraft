@@ -101,6 +101,7 @@ mod symbol_glyphs;
 mod system_theme;
 mod tab_split;
 mod table_headings;
+mod table_tab;
 mod text_box_editing;
 mod text_overflow_scroll;
 mod touch_pan;

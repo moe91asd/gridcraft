@@ -1,5 +1,57 @@
 use super::{CellRef, EngineError, Json, RangeRef, Result, Session, TableColumn, TotalsFn, Value, bad, edit, json, ok, str_param, target_range};
 
+pub(super) fn table_append_row(s: &mut Session, p: &Json) -> Result<Json> {
+    let d = s.doc()?;
+    let si = d.wb.active_sheet();
+    let sh = d.wb.sheet(si).ok_or(EngineError::NoDocument)?;
+    let table = sh
+        .tables
+        .iter()
+        .find(|t| str_param(p, "table").map_or_else(|| t.range.contains(d.selection.active), |n| t.name.eq_ignore_ascii_case(n)))
+        .cloned()
+        .ok_or_else(|| bad("table.appendRow", "select a cell in a table"))?;
+    if sh.is_protected() {
+        return Err(bad("table.appendRow", "The sheet is protected."));
+    }
+    if table.range.end.row >= gridcraft_core::MAX_ROWS - 1 {
+        return Err(bad("table.appendRow", "The table has reached the last worksheet row."));
+    }
+    let row = table.range.end.row + u32::from(!table.totals_row);
+    let inserted = RangeRef::new(CellRef::new(row, table.range.start.col), CellRef::new(row, table.range.end.col));
+    let styles: Vec<_> = (table.range.start.col..=table.range.end.col)
+        .map(|col| table.data_range().map(|r| sh.style_id(CellRef::new(r.end.row, col))).unwrap_or_default())
+        .collect();
+    s.grouped("Append Table Row", |s| {
+        s.execute("home.insertCells", json!({"range":inserted.a1(), "shift":"down"}))?;
+        // Inserting before totals already expands the table through structural rewriting.
+        edit(s, |cx| {
+            let sh = cx.sheet_mut(si)?;
+            if !table.totals_row {
+                let t = sh.tables.iter_mut().find(|t| t.name == table.name).ok_or_else(|| bad("table.appendRow", "table disappeared"))?;
+                t.range.end.row = row;
+            }
+            for (i, style) in styles.iter().enumerate() {
+                let c = CellRef::new(row, table.range.start.col + i as u32);
+                sh.set_style(c, *style);
+            }
+            cx.structural = true;
+            Ok(())
+        })?;
+        for (i, column) in table.columns.iter().take(table.range.width() as usize).enumerate() {
+            if let Some(formula) = &column.formula {
+                let parsed = gridcraft_model::Formula::new(formula);
+                let expr = parsed.expr().ok_or_else(|| bad("table.appendRow", "invalid calculated column formula"))?;
+                let base = table.data_range().map_or(row, |r| r.start.row);
+                let shifted = gridcraft_formula::adjust::shift_relative(expr, i64::from(row) - i64::from(base), 0);
+                let input = format!("={}", gridcraft_model::Formula::from_expr(shifted).text);
+                s.execute("cell.set", json!({"cell":CellRef::new(row, table.range.start.col + i as u32).a1(), "input":input}))?;
+            }
+        }
+        s.execute("selection.set", json!({"cell":inserted.start.a1()}))?;
+        Ok(json!({"range":inserted.a1()}))
+    })
+}
+
 pub(super) fn table_resize(s: &mut Session, p: &Json) -> Result<Json> {
     let r = str_param(p, "range").and_then(RangeRef::parse).ok_or_else(|| bad("table.resize", "missing `range`"))?;
     let d = s.doc()?;

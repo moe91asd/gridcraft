@@ -172,7 +172,11 @@ impl SheetApp {
     /// instead of continuing it (Right) or going back to its column like Enter (Down), as in Excel.
     pub fn commit_edit_arrow(&mut self, dr: i64, dc: i64) -> bool {
         let run = self.tab_run.take();
-        let ok = self.commit_edit(dr, dc, false, false);
+        let ok = self.commit_edit(0, 0, false, false);
+        if ok {
+            let _ = self.session.run("selection.move", json!({"dr":dr, "dc":dc}));
+            self.grid.ensure_visible = true;
+        }
         self.tab_run = if ok { None } else { run };
         ok
     }
@@ -185,6 +189,29 @@ impl SheetApp {
     /// Enter/Tab move inside a multi-cell selection, otherwise to the next cell.
     pub fn move_after_enter(&mut self, dr: i64, dc: i64) {
         let multi = self.session.active().is_some_and(|d| !d.selection.is_single_cell());
+        if !multi && dr == 0 && dc != 0 {
+            let table_end = self.session.active().and_then(|d| {
+                let at = d.selection.active;
+                let data = d.wb.active()?.table_at(at)?.data_range()?;
+                if dc > 0 && at.col == data.end.col {
+                    Some((at.row == data.end.row, gridcraft_engine::core::CellRef::new(at.row.saturating_add(1), data.start.col)))
+                } else if dc < 0 && at.col == data.start.col && at.row > data.start.row {
+                    Some((false, gridcraft_engine::core::CellRef::new(at.row - 1, data.end.col)))
+                } else {
+                    None
+                }
+            });
+            if let Some((append, target)) = table_end {
+                self.tab_run = None;
+                if append {
+                    self.run_or_alert("table.appendRow", json!({}));
+                } else {
+                    self.run_or_alert("selection.set", json!({"cell":target.a1()}));
+                }
+                self.grid.ensure_visible = true;
+                return;
+            }
+        }
         // Any other move (arrows, clicks, another sheet) leaves the selection off the cell the
         // last Tab landed on, which ends the run.
         let here = self.session.active().map(|d| (d.uid, d.wb.active_sheet(), d.selection.active));

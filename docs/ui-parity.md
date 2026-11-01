@@ -1,6 +1,6 @@
 # UI parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-11-01 · **Change:** minor (RTL worksheet tabs and text integration) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-11-01 · **Change:** minor (Tab appends a formatted table data row) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Interaction, controls and feel, against Excel. Part of [target-app-parity.md](target-app-parity.md).
 **UI/UX fidelity: ~55% ready, 50–80 h** (estimated). Ribbon command coverage is measured
@@ -49,6 +49,7 @@ this logic, with one undo step.
 
 | Behaviour | Status |
 |---|---|
+| Tab in a formatted table | At the final data cell, Tab inserts a data row, preserves table styling, and selects its first cell (`table.appendRow`). Rows wrap within the table; Shift+Tab moves backwards without appending. Works when committing an edit; Arrow Right remains ordinary movement. Totals and data below are shifted safely; protected sheets and the worksheet row limit reject growth |
 | RTL worksheets and paragraph text | Mirrored grid, tabs, navigation, reorder, split handle and horizontal scrolling. General text aligns by paragraph direction; explicit Left/Right stays physical when wrapped. Cells/editors use pinned egui shaping/bidi; native Arabic fallback and imported RTL shape paragraph rendering/editing are connected. Native print/PDF mirrors RTL sheets and uses shaped Arabic/Hebrew vector glyphs. RTL application chrome and browser font input remain gaps |
 | Click/drag/Shift/Ctrl selection, multi-area selection | rectangular drag works in one direction only in some cases (#28) |
 | Cursor while dragging cells, headers, freeze handles and objects | stable for the active drag (#936); Draw tools keep their crosshair; header arrows and a custom cell cursor remain unimplemented |
@@ -195,6 +196,7 @@ scrollbar bugs 2–4 · pixel/feel pass against observed Excel 7–12.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-01 | minor | Tab at a table's last data cell appends an undoable formatted row and selects its first cell; keyboard, edit commit, totals, occupied cells below and protection regressions |
 | 2026-11-01 | minor | Native print/PDF export mirrors RTL worksheets and shapes Arabic/Hebrew with installed-font vector outlines; print regression tests and rendered synthetic RTL worksheet verified |
 | 2026-11-01 | minor | RTL worksheet tab layout/navigation/reorder/split handle; paragraph-aware cell/editor alignment and native Arabic fallback; saved shape paragraph direction used by painting and editing |
 | 2026-10-30 | minor | Checkbox cells print and export to PDF as boxes, as on screen: unchecked white with a grey outline, checked green with a white tick (#2972). They printed their value as TRUE or FALSE; other values in a checkbox cell still print as text |
