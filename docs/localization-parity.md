@@ -1,6 +1,6 @@
 # Localization parity
 
-> **Last reviewed:** 2026-11-01 · **Last updated:** 2026-11-01 · **Change:** minor (RTL tabs, paragraph alignment, editors and Arabic fallback) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-11-01 · **Last updated:** 2026-11-01 · **Change:** minor (date-formatted entry follows the cell's day/month order) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Per-language status against Excel, which ships its UI in dozens of languages (Windows language
 packs cover 100+), with localized function names, argument separators, number and date formats,
@@ -69,6 +69,13 @@ right-to-left sheets and full complex-script support. Part of
 - **PDF export** shapes native Arabic/Hebrew with installed fonts and emits vector glyphs;
   font subsetting, browser font input and broader complex-script/font coverage remain gaps.
 
+Numeric date entry in date-formatted cells follows the format's month/numeric-day order:
+`1-11` means 1 November for `dd/mm/yyyy`, but 11 January for `mm/dd/yyyy`, using the current
+year. The format is retained and a date serial is stored; data validation uses the same
+interpretation. Calendar tokens distinguish numeric days from weekday names and months from
+time minutes. Formats without both a month and numeric day, General cells and formula-text
+coercion retain the existing en-US parser. This is a cell-format rule, not OS-region detection.
+
 ## Languages
 
 UI strings translated are measured counts against the ~2,200 estimate. Estimates to `full`
@@ -119,6 +126,7 @@ language (none so far) and of localized function names.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-01 | minor | Typed numeric dates in date-formatted cells use their month/day order, preserve the existing format and share parsing with validation; General/coercion and explicit ISO dates retain their behavior |
 | 2026-11-01 | minor | Native PDF/printing mirrors RTL sheets (including headings, repeated title blocks and links); Arabic/Hebrew uses bidi and OpenType-shaped vector glyphs from installed fonts. No reader font installation is required; no font files added to the repository. Browser font input and embedded subsetting remain gaps |
 | 2026-11-01 | minor | RTL worksheet tabs, navigation, reorder and split handle; direction-aware General cell alignment and editors without reversing Unicode; explicit wrapped alignment; saved RTL shape paragraph direction used for painting/editing; native Arabic fallback. Printing/PDF and translated RTL chrome remain gaps |
 | 2026-10-23 | minor | Missing translations are reported, never a failure: `cargo xtask i18n-report` prints, per language, the strings other catalogs translate and it lacks (plus Spanish function help rows keyed by English the function catalog no longer has) and always passes; `cargo xtask ci` runs it first. Coverage and per-language parity tests and tests of one language's exact wording are gone; UI tests take the expected text from the catalog. Duplicate-key, placeholder, context-prefix and line-shape checks stay |

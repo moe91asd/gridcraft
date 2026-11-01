@@ -5,6 +5,23 @@ use super::{
 
 // ---------------------------------------------------------------- entry
 
+/// Constant entry parsed with the destination's effective number format. Shared with validation.
+pub(crate) fn parse_cell_input(input: &str, sheet: usize, at: CellRef, wb: &gridcraft_model::Workbook) -> gridcraft_core::parse::Parsed {
+    use gridcraft_core::parse::{Parsed, current_year, parse_input, parse_input_with_date_order};
+    let style = wb.sheet(sheet).map(|sh| sh.style_id(at)).unwrap_or_default();
+    let code = wb.styles.get(style).num_fmt.as_str();
+    if code == "@" && !input.is_empty() {
+        return Parsed { value: Value::text(input), format: None };
+    }
+    if code == "General" || input.is_empty() {
+        return parse_input(input, wb.date_system);
+    }
+    match gridcraft_numfmt::NumberFormat::parse(code).date_input_order() {
+        Some(order) => parse_input_with_date_order(input, wb.date_system, order, current_year()),
+        None => parse_input(input, wb.date_system),
+    }
+}
+
 /// What typing `input` into a cell produces (constant or formula, plus an automatic number
 /// format). Inherits the destination's cell, row or column style, including its number
 /// format, before parsing. Errors when the formula can't be parsed.
@@ -52,7 +69,7 @@ pub(crate) fn input_to_cell(input: &str, sheet: usize, at: CellRef, wb: &mut gri
         }
         return Ok(Some(cell));
     }
-    let mut parsed = gridcraft_core::parse::parse_input(input, wb.date_system);
+    let mut parsed = parse_cell_input(input, sheet, at, wb);
     // Like Excel's automatic percent entry: a bare number of 1 or more typed into a cell already
     // formatted as a percentage is a percent (3 -> 3%); smaller numbers are taken as fractions.
     if parsed.format.is_none()

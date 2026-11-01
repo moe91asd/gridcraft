@@ -2,7 +2,7 @@
 
 **Stage: alpha** · next: beta, ~25 points of "ready for real work" and ~160–240 h away
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-01 · **Change:** minor (Tab appends a formatted table data row) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-01 · **Change:** minor (date entry follows destination format order) · **Target:** Microsoft Excel (Microsoft 365)
 
 GridCraft aims at full Microsoft Excel parity, and at being better in places: faster, open (XLSX
 is the native format), fully scriptable by agents (MCP, control channel, CLI), and on the web.
@@ -135,6 +135,7 @@ Ranked; estimates in Opus 5.5 agent-hours. Detail and the full beta-gate list in
 
 | Date | What landed |
 |---|---|
+| 2026-11-01 | Date-formatted cells interpret `1-11` by their numeric day/month format order and current year, store a serial date and keep the display format. Cell/row/column formatting and validation share the parser; General entry and formula coercion keep their existing behavior |
 | 2026-11-01 | Tab at the last data cell of a formatted table inserts an undoable row and selects its first cell; table-row wrapping, editing, totals rows, occupied cells below and protection are handled through `table.appendRow` |
 | 2026-11-01 | Native print/PDF mirrors RTL sheet geometry and shapes Arabic/Hebrew from installed OpenType fonts into portable vector glyphs; headings, title blocks and PDF links follow the mirrored sheet |
 | 2026-11-01 | RTL worksheet tabs, navigation, reordering and split handle; General-aligned Arabic/Hebrew text and editors follow paragraph direction, wrapped explicit alignment remains physical, saved RTL shape paragraphs render/edit in their direction, and native Arabic fallback probes installed fonts. RTL chrome, browser script fonts and print/PDF parity remain gaps |
@@ -247,6 +248,7 @@ Ranked; estimates in Opus 5.5 agent-hours. Detail and the full beta-gate list in
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-01 | minor | Progress log: date-format-aware typed entry |
 | 2026-11-01 | minor | Progress log: Tab appends a formatted table data row |
 | 2026-11-01 | minor | Progress log: native RTL and Arabic PDF printing |
 | 2026-11-01 | minor | Progress log: RTL worksheet layout and text integration |

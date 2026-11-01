@@ -1,6 +1,21 @@
 use super::*;
 
 #[test]
+fn date_input_order_uses_calendar_tokens_not_literals_weekdays_or_minutes() {
+    for code in
+        ["dd/mm/yyyy", "d-mmm-yy", "yyyy-dd-mm", "[$-409]dd/mm/yyyy h:mm", "\"month\" dd/mm/yyyy", "[Red]dd/mm/yyyy;mm/dd/yyyy", "0;dd/mm/yyyy"]
+    {
+        assert_eq!(NumberFormat::parse(code).date_input_order(), Some(DateOrder::DayMonth), "{code}");
+    }
+    for code in ["mm/dd/yyyy", "yyyy-mm-dd", "ddd, m/d/yyyy", "dddd mmmm d yyyy", "hh:mm mm/dd/yyyy"] {
+        assert_eq!(NumberFormat::parse(code).date_input_order(), Some(DateOrder::MonthDay), "{code}");
+    }
+    for code in ["General", "@", "0.00", "h:mm", "[h]:mm", "mmm-yy", "ddd", "\"dd/mm/yyyy\"", "0;0;0;\"d/m\"@", "\\d mm/yyyy"] {
+        assert_eq!(NumberFormat::parse(code).date_input_order(), None, "{code}");
+    }
+}
+
+#[test]
 fn format_colors_resolve_named_and_indexed_rgb_safely() {
     assert_eq!(FormatColor::Green.rgb(), Some([0, 255, 0]));
     assert_eq!(FormatColor::Black.rgb(), Some([0, 0, 0]));

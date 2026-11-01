@@ -14,6 +14,7 @@ use gridcraft_core::{CellError, DateSystem, Value};
 
 pub use builtin::{builtin_format, builtin_id};
 pub use decimal::format_general_fit;
+pub use gridcraft_core::parse::DateOrder;
 
 use parse::{DatePart, SecKind, Section, Tok};
 use render::Out;
@@ -191,6 +192,19 @@ impl NumberFormat {
     /// True when the code contains date or time tokens.
     pub fn is_date(&self) -> bool {
         self.num_sections().iter().any(|s| s.kind == SecKind::Date)
+    }
+
+    /// Entry order from the first numeric date section with both a month and numeric day.
+    /// Weekday names, literals and time minutes do not determine calendar input order.
+    pub fn date_input_order(&self) -> Option<DateOrder> {
+        self.num_sections().iter().filter(|s| s.kind == SecKind::Date).find_map(|s| {
+            if s.toks.iter().any(|t| matches!(t, Tok::Date(DatePart::ElapsedH(_) | DatePart::ElapsedM(_) | DatePart::ElapsedS(_)))) {
+                return None;
+            }
+            let month = s.toks.iter().position(|t| matches!(t, Tok::Date(DatePart::Month(_))))?;
+            let day = s.toks.iter().position(|t| matches!(t, Tok::Date(DatePart::Day(1 | 2))))?;
+            Some(if day < month { DateOrder::DayMonth } else { DateOrder::MonthDay })
+        })
     }
 
     /// For a date or time format, whether the section that formats `value` shows calendar parts (year, month,
