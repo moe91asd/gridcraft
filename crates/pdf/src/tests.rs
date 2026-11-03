@@ -6,12 +6,16 @@ fn rtl_geometry_preserves_text_and_mirrors_link_rectangles() {
     let p = d.add_page(300.0, 200.0);
     p.begin_horizontal_mirror(300.0);
     p.text(20.0, 30.0, 12.0, Font::Helvetica, [0, 0, 0], "123");
+    let depth = p.depth;
+    p.text(20.0, 50.0, 12.0, Font::Symbol, [0, 0, 0], "∑α");
+    assert_eq!(p.depth, depth);
     p.link_uri(20.0, 20.0, 40.0, 20.0, "https://example.org");
     p.end_horizontal_mirror();
     let pdf = String::from_utf8_lossy(&d.finish()).into_owned();
     assert!(pdf.contains("-1 0 0 1 300 0 cm"));
     assert!(pdf.contains("/Rect [240 160 280 180]"));
     assert!(pdf.contains("(123) Tj"));
+    assert!(pdf.contains("(\\345a) Tj"));
 }
 
 #[test]
@@ -363,4 +367,22 @@ fn cjk_text_is_not_replaced_by_question_marks() -> Result<(), Box<dyn Error>> {
     // Measured as full-width glyphs, matching the CID font's default width.
     assert_eq!(text_width(Font::Helvetica, 10.0, "签字"), 20.0);
     Ok(())
+}
+
+#[test]
+fn symbol_font_draws_maths_in_its_own_encoding() {
+    let mut doc = PdfDoc::new();
+    let p = doc.add_page(200.0, 200.0);
+    p.text(10.0, 50.0, 12.0, Font::Symbol, [0, 0, 0], "\u{2211}\u{03B1}\u{2264}\u{221E}x");
+    p.text(10.0, 80.0, 12.0, Font::TimesItalic, [0, 0, 0], "x");
+    let pdf = doc.finish();
+    let s = String::from_utf8_lossy(&pdf);
+    assert!(s.contains("/BaseFont /Symbol >>"), "Symbol has no WinAnsi encoding");
+    assert!(s.contains("/BaseFont /Times-Italic /Encoding /WinAnsiEncoding"));
+    // The sum, alpha, less-or-equal and infinity codes; x is not in Symbol and becomes `?`.
+    assert!(s.contains("(\\345a\\243\\245?) Tj"), "{s}");
+    check_xref(&pdf).unwrap();
+    assert!(Font::Symbol.can_encode('\u{2211}') && !Font::Symbol.can_encode('x'));
+    assert!(Font::TimesRoman.can_encode('x') && !Font::TimesRoman.can_encode('\u{2211}'));
+    assert_eq!(text_width(Font::Symbol, 10.0, "\u{2211}"), 7.13);
 }
